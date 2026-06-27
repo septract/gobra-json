@@ -426,7 +426,12 @@ case class BaseConfig(gobraDirectory: Option[Path] = ConfigDefaults.DefaultGobra
   def shouldParse: Boolean = true
   def shouldTypeCheck: Boolean = !shouldParseOnly
   def shouldDesugar: Boolean = shouldTypeCheck
-  def shouldViperEncode: Boolean = shouldDesugar
+  private def printsInternalJson: Boolean = reporter match {
+    case r: FileWriterReporter => r.printInternalJson
+    case _ => false
+  }
+
+  def shouldViperEncode: Boolean = shouldDesugar && !printsInternalJson
   def shouldVerify: Boolean = shouldViperEncode && !stopAfterEncoding
   def shouldChop: Boolean = choppingUpperBound > 1 || isolated.exists(_.nonEmpty)
   lazy val isolated: Option[Vector[SourcePosition]] = {

@@ -13,10 +13,19 @@ import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
+import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StatsCollector}
 import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation
 
 trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
+  private def acceptsPlainGoBuiltins(reporter: GobraReporter): Boolean = reporter match {
+    case reporter: FileWriterReporter => reporter.printInternalJson
+    case StatsCollector(inner) => acceptsPlainGoBuiltins(inner)
+    case _ => false
+  }
+
+  private def acceptsPlainGoBuiltins: Boolean = acceptsPlainGoBuiltins(config.reporter)
+
   /** abstract type for BuiltInMemberTag tag */
   def typ(tag: BuiltInMemberTag): AbstractType = tag match {
     case t: BuiltInFunctionTag => t match {
@@ -32,34 +41,47 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         def appendTypeError(n: PNode, ts: Vector[Type]): Messages =
           error(n, s"type error: append expects first argument of type perm followed by a slice of type []Type and a variadic type Type... but got ${ts.mkString(", ")}")
 
+        def validAppendArgs(n: PNode, ts: Vector[Type], hasPermissionArg: Boolean): Messages = {
+          val mayInit = isEnclosingMayInit(n)
+          val sliceArg = if (hasPermissionArg) ts(1) else ts(0)
+          val values = if (hasPermissionArg) ts.drop(2) else ts.drop(1)
+          underlyingType(sliceArg) match {
+            case t: SliceT => values match {
+              case Vector(v: VariadicT) if assignableTo(v.elem, t.elem, mayInit) => noMessages
+              case tail if tail.forall(assignableTo(_, t.elem, mayInit)) => noMessages
+              case _ => appendTypeError(n, ts)
+            }
+            case _ => appendTypeError(n, ts)
+          }
+        }
+
+        def appendFunctionType(ts: Vector[Type], hasPermissionArg: Boolean): FunctionT = {
+          val sliceArg = if (hasPermissionArg) ts(1) else ts(0)
+          val values = if (hasPermissionArg) ts.drop(2) else ts.drop(1)
+          underlyingType(sliceArg) match {
+            case t: SliceT => values match {
+              // we use the most permissive `mayInit` parameter here, as we cannot recover precise information
+              // about whether it is in "mayInit" regions of the code.
+              case Vector(v: VariadicT) if assignableTo(v.elem, t.elem, false) =>
+                FunctionT(ts, sliceArg)
+              case tail if tail.forall(assignableTo(_, t.elem, false)) =>
+                val args = if (hasPermissionArg) Vector(PermissionT, sliceArg, VariadicT(t.elem)) else Vector(sliceArg, VariadicT(t.elem))
+                FunctionT(args, sliceArg)
+              case _ => Violation.violation(s"Unexpected pattern found for values: $values")
+            }
+            case t => Violation.violation(s"expected $sliceArg to have a slice type as underlying type, got $t instead")
+          }
+        }
+
         AbstractType(
           {
-            case (n, ts@PermissionT +: s +: v) =>
-              val mayInit = isEnclosingMayInit(n)
-              underlyingType(s) match {
-                case t: SliceT => v match {
-                  case Vector(v: VariadicT) if assignableTo(v.elem, t.elem, mayInit) => noMessages
-                  case tail if tail.forall(assignableTo(_, t.elem, mayInit)) => noMessages
-                  case _ => appendTypeError(n, ts)
-                }
-                case _ => appendTypeError(n, ts)
-              }
+            case (n, ts@PermissionT +: _ +: _) => validAppendArgs(n, ts, hasPermissionArg = true)
+            case (n, ts@_ +: _) if acceptsPlainGoBuiltins => validAppendArgs(n, ts, hasPermissionArg = false)
             case (n, ts) => appendTypeError(n, ts)
           },
           {
-            case ts@PermissionT +: s +: v =>
-              underlyingType(s) match {
-                case t: SliceT => v match {
-                  // we use the most permissive `mayInit` parameter here, as we cannot recover precise information
-                  // about whether it is in "mayInit" regions of the code.
-                  case Vector(v: VariadicT) if assignableTo(v.elem, t.elem, false) =>
-                    FunctionT(ts, s)
-                  case tail if tail.forall(assignableTo(_, t.elem, false)) =>
-                    FunctionT(Vector(PermissionT, s, VariadicT(t.elem)), s)
-                  case _ => Violation.violation(s"Unexpected pattern found for v: $v")
-                }
-                case t => Violation.violation(s"expected $s to have a slice type as underlying type, got $t instead")
-              }
+            case ts@PermissionT +: _ +: _ => appendFunctionType(ts, hasPermissionArg = true)
+            case ts@_ +: _ if acceptsPlainGoBuiltins => appendFunctionType(ts, hasPermissionArg = false)
           })
       }
 
@@ -72,11 +94,13 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         AbstractType(
           {
             case (_, Vector(t1, t2, PermissionT)) if validArgTypes(t1, t2) => noMessages
+            case (_, Vector(t1, t2)) if acceptsPlainGoBuiltins && validArgTypes(t1, t2) => noMessages
             case (n, ts) =>
               error(n, s"type error: copy expects two slices of the same type and a permission but got ${ts.mkString(", ")}")
           },
           {
             case ts@Vector(t1, t2, PermissionT) if validArgTypes(t1, t2) => FunctionT(ts, INT_TYPE)
+            case ts@Vector(t1, t2) if acceptsPlainGoBuiltins && validArgTypes(t1, t2) => FunctionT(ts, INT_TYPE)
           })
       }
     }
@@ -169,8 +193,14 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case CloseFunctionTag =>
       GhostType.ghostTuple(Vector(false, true, true /* true */, true))
 
+    case AppendFunctionTag if acceptsPlainGoBuiltins && args.headOption.exists(_ != PermissionT) =>
+      GhostType.ghostTuple(Vector.fill(args.length)(false))
+
     case AppendFunctionTag =>
       GhostType.ghostTuple(Vector(true, false, false))
+
+    case CopyFunctionTag if acceptsPlainGoBuiltins && args.length == 2 =>
+      GhostType.ghostTuple(Vector(false, false))
 
     case CopyFunctionTag =>
       GhostType.ghostTuple(Vector(false, false, true))

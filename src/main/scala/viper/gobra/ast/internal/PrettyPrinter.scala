@@ -307,6 +307,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MakeMap(target, typeParam, initialSpaceArg) =>
       showVar(target) <+> "=" <+> "make" <> parens(showType(typeParam) <> opt(initialSpaceArg)(comma <+> showExpr(_)))
 
+    case GoSliceAppend(target, slice, elems) =>
+      showVar(target) <+> "=" <+> "append" <> parens(showExpr(slice) <> comma <+> showExpr(elems) <> "...")
+
+    case GoSliceCopy(target, dst, src) =>
+      showVar(target) <+> "=" <+> "copy" <> parens(showExpr(dst) <> comma <+> showExpr(src))
+
     case EffectfulConversion(target, newType, expr) =>
       showVar(target) <+> "=" <+> showType(newType) <> parens(showExpr(expr))
 
@@ -774,6 +780,12 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case MakeMap(target, typeParam, initialSpaceArg) =>
       showVar(target) <+> "=" <+> "make" <> parens(showType(typeParam) <> opt(initialSpaceArg)(comma <+> showExpr(_)))
+
+    case GoSliceAppend(target, slice, elems) =>
+      showVar(target) <+> "=" <+> "append" <> parens(showExpr(slice) <> comma <+> showExpr(elems) <> "...")
+
+    case GoSliceCopy(target, dst, src) =>
+      showVar(target) <+> "=" <+> "copy" <> parens(showExpr(dst) <> comma <+> showExpr(src))
 
     case EffectfulConversion(target, newType, expr) =>
       showVar(target) <+> "=" <+> showType(newType) <> parens(showExpr(expr))

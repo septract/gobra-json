@@ -427,6 +427,8 @@ case class SafeTypeAssertion(resTarget: LocalVar, successTarget: LocalVar, expr:
 case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt with Deferrable
 case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt with Deferrable
 case class ClosureCall(targets: Vector[LocalVar], closure: Expr, args: Vector[Expr], spec: ClosureSpec)(val info: Source.Parser.Info) extends Stmt with Deferrable
+case class GoSliceAppend(target: LocalVar, slice: Expr, elems: Expr)(val info: Source.Parser.Info) extends Stmt
+case class GoSliceCopy(target: LocalVar, dst: Expr, src: Expr)(val info: Source.Parser.Info) extends Stmt
 
 case class GoFunctionCall(func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 case class GoMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt

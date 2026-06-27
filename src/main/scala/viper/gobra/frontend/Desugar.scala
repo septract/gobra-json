@@ -2159,6 +2159,14 @@ object Desugar extends LazyLogging {
         case _ => in.PureMethodCall(recv, meth, args, resT, reveal)(src)
       }
 
+      def goSliceBuiltinCall(func: ap.FunctionKind, targets: Vector[in.LocalVar], args: Vector[in.Expr]): Option[in.Stmt] = func match {
+        case ap.BuiltInFunction(_, symb) if symb.tag == AppendFunctionTag && args.length == 2 && targets.length == 1 =>
+          Some(in.GoSliceAppend(targets.head, args(0), args(1))(src))
+        case ap.BuiltInFunction(_, symb) if symb.tag == CopyFunctionTag && args.length == 2 && targets.length == 1 =>
+          Some(in.GoSliceCopy(targets.head, args(0), args(1))(src))
+        case _ => None
+      }
+
       def convertArgs(args: Vector[in.Expr]): Vector[in.Expr] = {
         // implicitly convert arguments:
         p.callee match {
@@ -2232,7 +2240,10 @@ object Desugar extends LazyLogging {
                 args <- dArgs
                 convertedArgs = convertArgs(args)
                 spec = p.maybeSpec.map(closureSpecD(ctx, info))
-              } yield Left((targets, functionCall(targets, base, convertedArgs, spec)))
+              } yield goSliceBuiltinCall(base, targets, convertedArgs) match {
+                case Some(stmt) => Left((targets, stmt))
+                case None => Left((targets, functionCall(targets, base, convertedArgs, spec)))
+              }
             }
 
           case iim: ap.ImplicitlyReceivedInterfaceMethod =>

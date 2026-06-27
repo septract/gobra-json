@@ -160,6 +160,8 @@ object InternalJsonExporter {
     "GoClosureCall",
     "GoFunctionCall",
     "GoMethodCall",
+    "GoSliceAppend",
+    "GoSliceCopy",
     "GreaterCmp",
     "If",
     "Implication",
