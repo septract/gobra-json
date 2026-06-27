@@ -476,6 +476,7 @@ case class InputConfig(
   goify: InputConfigOption[Boolean] = InputConfigOption("goify", None),
   unparse: InputConfigOption[Boolean] = InputConfigOption("unparse", None),
   printInternal: InputConfigOption[Boolean] = InputConfigOption("printInternal", None),
+  printInternalJson: InputConfigOption[Boolean] = InputConfigOption("printInternalJson", None),
   printVpr: InputConfigOption[Boolean] = InputConfigOption("printVpr", None),
   parseOnly: InputConfigOption[Boolean] = InputConfigOption("parseOnly", None),
   choppingUpperBound: InputConfigOption[Int] = InputConfigOption("choppingUpperBound", None),
@@ -537,6 +538,7 @@ case class InputConfig(
     goify = goify orElse other.goify,
     unparse = unparse orElse other.unparse,
     printInternal = printInternal orElse other.printInternal,
+    printInternalJson = printInternalJson orElse other.printInternalJson,
     printVpr = printVpr orElse other.printVpr,
     parseOnly = parseOnly orElse other.parseOnly,
     choppingUpperBound = choppingUpperBound orElse other.choppingUpperBound,
@@ -631,6 +633,7 @@ case class InputConfig(
       goify = goify orElse other.goify,
       unparse = unparse orElse other.unparse,
       printInternal = printInternal orElse other.printInternal,
+      printInternalJson = printInternalJson orElse other.printInternalJson,
       printVpr = printVpr orElse other.printVpr,
       parseOnly = parseOnly orElse other.parseOnly,
       choppingUpperBound = choppingUpperBound orElse other.choppingUpperBound,
@@ -931,6 +934,7 @@ case class InputConfig(
         goify = goify.value.getOrElse(false),
         debug = debug.value.getOrElse(false),
         printInternal = printInternal.value.getOrElse(false),
+        printInternalJson = printInternalJson.value.getOrElse(false),
         printVpr = printVpr.value.getOrElse(false),
         streamErrs = !noStreamErrors.value.getOrElse(false)),
     backend = backend.value,
@@ -1497,6 +1501,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val printInternalJson: ScallopOption[Boolean] = opt[Boolean](
+    name = "printInternalJson",
+    descr = "Print the transformed internal program representation as restrictive JSON",
+    default = Some(false),
+    noshort = true
+  )
+
   val printVpr: ScallopOption[Boolean] = opt[Boolean](
     name = "printVpr",
     descr = "Print the encoded Viper program",
@@ -1754,6 +1765,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     goify = toInputConfigOption(goify),
     unparse = toInputConfigOption(unparse),
     printInternal = toInputConfigOption(printInternal),
+    printInternalJson = toInputConfigOption(printInternalJson),
     printVpr = toInputConfigOption(printVpr),
     parseOnly = toInputConfigOption(parseOnly),
     choppingUpperBound = toInputConfigOption(chopUpperBound),

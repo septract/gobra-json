@@ -40,6 +40,7 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
                               goify: Boolean = false,
                               debug: Boolean = false,
                               printInternal: Boolean = false,
+                              printInternalJson: Boolean = false,
                               printVpr: Boolean = false,
                               printSIFVpr: Boolean = false,
                               streamErrs: Boolean = true) extends GobraReporter {
@@ -55,7 +56,10 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
       if (goify) write(inputs, "go", goifiedGhostCode())
     case TypeCheckDebugMessage(WithoutBuiltinSources(inputs), _, debugTypeInfo) if debug => write(inputs, "debugType", debugTypeInfo())
     case DesugaredMessage(WithoutBuiltinSources(inputs), internal) if printInternal => write(inputs, "internal", internal().formatted)
-    case AppliedInternalTransformsMessage(WithoutBuiltinSources(inputs), internal) if printInternal => write(inputs, "internal", internal().formatted)
+    case AppliedInternalTransformsMessage(WithoutBuiltinSources(inputs), internal) if printInternal || printInternalJson =>
+      val program = internal()
+      if (printInternal) write(inputs, "internal", program.formatted)
+      if (printInternalJson) write(inputs, "internal.json", InternalJsonExporter.format(program, inputs))
     case m@GeneratedViperMessage(_, WithoutBuiltinSources(inputs), _, _) if printVpr => write(inputs, "vpr", m.vprAstFormatted)
     case m: ChoppedViperMessage if printVpr => write(m.inputs, s"chopped${m.idx}.vpr", m.vprAstFormatted)
     case m: ChoppedProgressMessage => logger.info(m.toString)
